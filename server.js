@@ -205,10 +205,15 @@ app.delete('/api/links/:id', async (req, res) => {
   }
 });
 
-// 启动服务器
-app.listen(PORT, () => {
-  console.log(`🚀 NFC 视频管理服务已启动`);
-  console.log(`📱 本地访问：http://localhost:${PORT}`);
-  console.log(`🔗 管理后台：http://localhost:${PORT}/admin.html`);
-  console.log(`📌 NFC 链接示例：http://localhost:${PORT}/v/abc123`);
-});
+// 启动服务器（本地开发）
+if (process.env.VERCEL !== '1') {
+  app.listen(PORT, () => {
+    console.log(`🚀 NFC 视频管理服务已启动`);
+    console.log(`📱 本地访问：http://localhost:${PORT}`);
+    console.log(`🔗 管理后台：http://localhost:${PORT}/admin.html`);
+    console.log(`📌 NFC 链接示例：http://localhost:${PORT}/v/abc123`);
+  });
+}
+
+// 导出给 Vercel Serverless 使用
+module.exports = app;
