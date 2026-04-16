@@ -12,6 +12,10 @@
     {
       "source": "/v/(.*)",
       "destination": "/api/index.js"
+    },
+    {
+      "source": "/((?!_next/static|_next/image|favicon.ico).*)",
+      "destination": "/public/$1"
     }
   ]
 }
