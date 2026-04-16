@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NFC 视频管理后台</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <div class="container mx-auto px-4 py-8 max-w-6xl">
+    <h1 class="text-3xl font-bold text-gray-800 mb-8">🎬 NFC 视频链接管理</h1>
+
+    <!-- 上传和创建表单 -->
+    <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+      <h2 class="text-xl font-semibold mb-4">📤 上传视频并创建链接</h2>
+      
+      <form id="createForm" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">视频文件</label>
+          <input 
+            type="file" 
+            id="videoFile" 
+            accept="video/*" 
+            class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+            required
+          />
+          <p class="text-xs text-gray-500 mt-1">支持 MP4、WebM 等格式，最大 100MB</p>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">视频标题</label>
+          <input 
+            type="text" 
+            id="videoTitle" 
+            placeholder="例如：产品介绍视频" 
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">描述（可选）</label>
+          <textarea 
+            id="videoDescription" 
+            placeholder="视频描述..." 
+            rows="2"
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          ></textarea>
+        </div>
+
+        <button 
+          type="submit" 
+          id="submitBtn"
+          class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
+        >
+          上传并创建链接
+        </button>
+      </form>
+
+      <div id="uploadProgress" class="hidden mt-4">
+        <div class="bg-blue-100 border border-blue-400 text-blue-700 px-4 py-2 rounded">
+          ⏳ 正在上传视频，请稍候...
+        </div>
+      </div>
+
+      <div id="resultCard" class="hidden mt-6 bg-green-50 border border-green-200 rounded-lg p-4">
+        <h3 class="font-semibold text-green-800 mb-2">✅ 创建成功！</h3>
+        <div class="space-y-2 text-sm">
+          <div>
+            <span class="text-gray-600">NFC 链接：</span>
+            <code id="nfcUrl" class="bg-white px-2 py-1 rounded text-blue-600"></code>
+          </div>
+          <div>
+            <span class="text-gray-600">短 ID：</span>
+            <code id="shortId" class="bg-white px-2 py-1 rounded"></code>
+          </div>
+          <p class="text-xs text-gray-500 mt-2">💡 将此 NFC 链接写入 NFC 标签，用户扫描后即可观看视频</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 链接列表 -->
+    <div class="bg-white rounded-lg shadow-md p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-semibold">📋 已创建的链接</h2>
+        <button 
+          onclick="loadLinks()" 
+          class="text-blue-600 hover:text-blue-800 text-sm"
+        >
+          🔄 刷新
+        </button>
+      </div>
+
+      <div id="linksList" class="space-y-4">
+        <p class="text-gray-500 text-center py-8">加载中...</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = window.location.origin;
+
+    // 上传并创建链接
+    document.getElementById('createForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const fileInput = document.getElementById('videoFile');
+      const title = document.getElementById('videoTitle').value;
+      const description = document.getElementById('videoDescription').value;
+      const file = fileInput.files[0];
+
+      if (!file) {
+        alert('请选择视频文件');
+        return;
+      }
+
+      const submitBtn = document.getElementById('submitBtn');
+      const progressDiv = document.getElementById('uploadProgress');
+      const resultCard = document.getElementById('resultCard');
+
+      submitBtn.disabled = true;
+      progressDiv.classList.remove('hidden');
+      resultCard.classList.add('hidden');
+
+      try {
+        // 1. 上传视频
+        const formData = new FormData();
+        formData.append('video', file);
+
+        const uploadRes = await fetch(`${API_BASE}/api/upload`, {
+          method: 'POST',
+          body: formData,
+        });
+
+        const uploadData = await uploadRes.json();
+        
+        if (!uploadData.success) {
+          throw new Error(uploadData.error || '上传失败');
+        }
+
+        // 2. 创建链接映射
+        const linkRes = await fetch(`${API_BASE}/api/links`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            videoUrl: uploadData.videoUrl,
+            title: title || 'NFC Video',
+            description,
+          }),
+        });
+
+        const linkData = await linkRes.json();
+        
+        if (!linkData.success) {
+          throw new Error(linkData.error || '创建失败');
+        }
+
+        // 显示结果
+        document.getElementById('nfcUrl').textContent = linkData.data.nfcUrl;
+        document.getElementById('shortId').textContent = linkData.data.shortId;
+        resultCard.classList.remove('hidden');
+        
+        // 清空表单
+        fileInput.value = '';
+        document.getElementById('videoTitle').value = '';
+        document.getElementById('videoDescription').value = '';
+
+        // 刷新列表
+        loadLinks();
+
+      } catch (err) {
+        alert('❌ ' + err.message);
+      } finally {
+        submitBtn.disabled = false;
+        progressDiv.classList.add('hidden');
+      }
+    });
+
+    // 加载链接列表
+    async function loadLinks() {
+      const listDiv = document.getElementById('linksList');
+      listDiv.innerHTML = '<p class="text-gray-500 text-center py-8">加载中...</p>';
+
+      try {
+        const res = await fetch(`${API_BASE}/api/links`);
+        const data = await res.json();
+
+        if (!data.success || !data.data.length) {
+          listDiv.innerHTML = '<p class="text-gray-500 text-center py-8">暂无链接</p>';
+          return;
+        }
+
+        listDiv.innerHTML = data.data.map(link => `
+          <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
+            <div class="flex justify-between items-start mb-2">
+              <div>
+                <h3 class="font-semibold text-lg">${escapeHtml(link.title)}</h3>
+                <p class="text-sm text-gray-600">${escapeHtml(link.description || '无描述')}</p>
+              </div>
+              <span class="px-2 py-1 text-xs rounded ${link.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}">
+                ${link.active ? '✅ 启用' : '⏸️ 停用'}
+              </span>
+            </div>
+            
+            <div class="bg-gray-50 rounded p-3 mb-3">
+              <p class="text-xs text-gray-600 mb-1">NFC 链接：</p>
+              <code class="text-sm text-blue-600 break-all">${link.nfc_url}</code>
+            </div>
+
+            <div class="flex gap-2">
+              <a 
+                href="${link.nfc_url}" 
+                target="_blank"
+                class="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+              >
+                🔗 测试
+              </a>
+              <button 
+                onclick="toggleLink(${link.id}, ${!link.active})"
+                class="px-3 py-1 bg-${link.active ? 'gray' : 'green'}-600 text-white text-sm rounded hover:bg-${link.active ? 'gray' : 'green'}-700"
+              >
+                ${link.active ? '⏸️ 停用' : '▶️ 启用'}
+              </button>
+              <button 
+                onclick="deleteLink(${link.id})"
+                class="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700"
+              >
+                🗑️ 删除
+              </button>
+            </div>
+          </div>
+        `).join('');
+
+      } catch (err) {
+        listDiv.innerHTML = `<p class="text-red-500 text-center py-8">加载失败：${err.message}</p>`;
+      }
+    }
+
+    // 切换启用状态
+    async function toggleLink(id, active) {
+      try {
+        const res = await fetch(`${API_BASE}/api/links/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ active }),
+        });
+
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+
+        loadLinks();
+      } catch (err) {
+        alert('❌ 操作失败：' + err.message);
+      }
+    }
+
+    // 删除链接
+    async function deleteLink(id) {
+      if (!confirm('确定要删除这个链接吗？此操作不可恢复。')) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/api/links/${id}`, {
+          method: 'DELETE',
+        });
+
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+
+        loadLinks();
+      } catch (err) {
+        alert('❌ 删除失败：' + err.message);
+      }
+    }
+
+    // HTML 转义
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // 页面加载时获取列表
+    loadLinks();
+  </script>
+</body>
+</html>

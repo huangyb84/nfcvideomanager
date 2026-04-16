@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>视频播放</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #000;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    .video-container {
+      width: 100%;
+      max-width: 1200px;
+      padding: 20px;
+    }
+
+    video {
+      width: 100%;
+      height: auto;
+      max-height: 90vh;
+      background: #000;
+      border-radius: 8px;
+    }
+
+    .loading {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 24px;
+      z-index: 1000;
+    }
+
+    .error {
+      background: #dc2626;
+      color: white;
+      padding: 20px;
+      border-radius: 8px;
+      text-align: center;
+      max-width: 500px;
+      margin: 20px;
+    }
+
+    .title {
+      color: white;
+      text-align: center;
+      margin-bottom: 20px;
+      font-size: 1.5rem;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+    }
+
+    @media (max-width: 768px) {
+      .video-container {
+        padding: 10px;
+      }
+      
+      video {
+        max-height: 80vh;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="loading" class="loading">
+    <div>⏳ 正在加载视频...</div>
+  </div>
+
+  <div class="video-container">
+    <h1 id="videoTitle" class="title"></h1>
+    <video 
+      id="videoPlayer" 
+      controls
+      playsinline
+      webkit-playsinline
+      preload="auto"
+    >
+      您的浏览器不支持视频播放
+    </video>
+  </div>
+
+  <script>
+    // 从 URL 参数获取视频信息
+    const urlParams = new URLSearchParams(window.location.search);
+    const videoUrl = urlParams.get('url');
+    const title = urlParams.get('title') || 'NFC Video';
+
+    const videoPlayer = document.getElementById('videoPlayer');
+    const videoTitle = document.getElementById('videoTitle');
+    const loadingDiv = document.getElementById('loading');
+
+    // 设置标题
+    videoTitle.textContent = decodeURIComponent(title);
+
+    if (!videoUrl) {
+      loadingDiv.innerHTML = `
+        <div class="error">
+          <h2>❌ 错误</h2>
+          <p>未找到视频链接</p>
+        </div>
+      `;
+    } else {
+      // 加载视频
+      videoPlayer.src = decodeURIComponent(videoUrl);
+      
+      // 视频加载完成
+      videoPlayer.addEventListener('loadeddata', () => {
+        loadingDiv.style.display = 'none';
+        
+        // 尝试自动播放
+        videoPlayer.play().catch(err => {
+          console.log('自动播放被阻止:', err);
+          // 显示播放按钮提示
+          loadingDiv.innerHTML = `
+            <div style="text-align:center;">
+              <p>👆 请点击播放按钮观看视频</p>
+            </div>
+          `;
+          loadingDiv.style.background = 'rgba(0,0,0,0.6)';
+          setTimeout(() => {
+            loadingDiv.style.display = 'none';
+          }, 2000);
+        });
+      });
+
+      // 加载错误
+      videoPlayer.addEventListener('error', (e) => {
+        loadingDiv.innerHTML = `
+          <div class="error">
+            <h2>❌ 加载失败</h2>
+            <p>视频无法加载，请稍后重试</p>
+          </div>
+        `;
+        console.error('视频加载错误:', e);
+      });
+
+      // 视频结束
+      videoPlayer.addEventListener('ended', () => {
+        console.log('视频播放结束');
+      });
+    }
+
+    // 全屏优化（移动端）
+    function enableFullscreen() {
+      if (videoPlayer.requestFullscreen) {
+        videoPlayer.requestFullscreen().catch(err => {
+          console.log('全屏请求失败:', err);
+        });
+      }
+    }
+
+    // 点击视频时尝试全屏（移动端体验优化）
+    videoPlayer.addEventListener('click', () => {
+      if (window.innerWidth < 768 && !document.fullscreenElement) {
+        enableFullscreen();
+      }
+    });
+
+    // 防止屏幕休眠
+    let wakeLock = null;
+    async function requestWakeLock() {
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLock = await navigator.wakeLock.request('screen');
+          console.log('屏幕常亮已启用');
+        }
+      } catch (err) {
+        console.log('屏幕常亮请求失败:', err);
+      }
+    }
+
+    // 视频播放时启用屏幕常亮
+    videoPlayer.addEventListener('play', () => {
+      requestWakeLock();
+      loadingDiv.style.display = 'none';
+    });
+
+    videoPlayer.addEventListener('pause', () => {
+      if (wakeLock) {
+        wakeLock.release();
+        wakeLock = null;
+      }
+    });
+  </script>
+</body>
+</html>
