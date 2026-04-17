@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NFC 链接管理 - Phase 1</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <div class="container mx-auto px-4 py-8 max-w-7xl">
+    <div class="flex justify-between items-center mb-8">
+      <h1 class="text-3xl font-bold text-gray-800">🔗 NFC 链接管理</h1>
+      <div class="flex gap-2">
+        <a href="admin.html" class="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700">
+          📤 旧版管理
+        </a>
+        <button onclick="showGenerateModal()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+          ➕ 批量生成
+        </button>
+      </div>
+    </div>
+
+    <!-- 统计卡片 -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div class="bg-white rounded-lg shadow-md p-6">
+        <div class="text-sm text-gray-600">总链接数</div>
+        <div class="text-3xl font-bold text-blue-600" id="totalCount">-</div>
+      </div>
+      <div class="bg-white rounded-lg shadow-md p-6">
+        <div class="text-sm text-gray-600">已绑定视频</div>
+        <div class="text-3xl font-bold text-green-600" id="boundCount">-</div>
+      </div>
+      <div class="bg-white rounded-lg shadow-md p-6">
+        <div class="text-sm text-gray-600">未绑定</div>
+        <div class="text-3xl font-bold text-orange-600" id="unboundCount">-</div>
+      </div>
+    </div>
+
+    <!-- NFC 链接列表 -->
+    <div class="bg-white rounded-lg shadow-md p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-semibold">📋 NFC 链接列表</h2>
+        <button onclick="loadNfcLinks()" class="text-blue-600 hover:text-blue-800 text-sm">
+          🔄 刷新
+        </button>
+      </div>
+
+      <div id="linksList" class="space-y-4">
+        <p class="text-gray-500 text-center py-8">加载中...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 批量生成模态框 -->
+  <div id="generateModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg p-6 w-full max-w-md">
+      <h3 class="text-xl font-semibold mb-4">📦 批量生成 NFC 链接</h3>
+      
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">生成数量</label>
+          <input type="number" id="generateCount" value="10" min="1" max="100" 
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">前缀（可选）</label>
+          <input type="text" id="generatePrefix" placeholder="例如：nfc_" 
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <p class="text-xs text-gray-500 mt-1">留空则不添加前缀</p>
+        </div>
+
+        <div class="flex gap-2">
+          <button onclick="closeGenerateModal()" class="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
+            取消
+          </button>
+          <button onclick="generateLinks()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+            生成
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 绑定视频模态框 -->
+  <div id="bindModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg p-6 w-full max-w-lg">
+      <h3 class="text-xl font-semibold mb-4">📤 绑定/更换视频</h3>
+      
+      <div id="bindModalContent" class="space-y-4">
+        <!-- 动态内容 -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = window.location.origin;
+    let currentLinkId = null;
+
+    // 加载 NFC 链接列表
+    async function loadNfcLinks() {
+      const listDiv = document.getElementById('linksList');
+      listDiv.innerHTML = '<p class="text-gray-500 text-center py-8">加载中...</p>';
+
+      try {
+        const res = await fetch(`${API_BASE}/api/nfc-links`);
+        const data = await res.json();
+
+        if (!data.success || !data.data.length) {
+          listDiv.innerHTML = `
+            <div class="text-center py-12">
+              <p class="text-gray-500 text-lg mb-4">暂无 NFC 链接</p>
+              <button onclick="showGenerateModal()" class="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                批量生成链接
+              </button>
+            </div>
+          `;
+          updateStats(0, 0, 0);
+          return;
+        }
+
+        let total = 0, bound = 0, unbound = 0;
+
+        listDiv.innerHTML = data.data.map(link => {
+          total++;
+          const hasVideo = !!link.current_video;
+          if (hasVideo) bound++; else unbound++;
+
+          return `
+            <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
+              <div class="flex justify-between items-start mb-3">
+                <div class="flex-1">
+                  <div class="flex items-center gap-2 mb-1">
+                    <h3 class="font-semibold text-lg">${escapeHtml(link.title)}</h3>
+                    <span class="px-2 py-1 text-xs rounded ${link.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}">
+                      ${link.is_active ? '✅ 启用' : '⏸️ 停用'}
+                    </span>
+                  </div>
+                  <p class="text-sm text-gray-600">${escapeHtml(link.description || '无描述')}</p>
+                </div>
+                <div class="flex gap-2">
+                  <button onclick="toggleLink(${link.id})" class="px-3 py-1 text-sm ${link.is_active ? 'bg-gray-200' : 'bg-green-600 text-white'} rounded">
+                    ${link.is_active ? '⏸️ 停用' : '▶️ 启用'}
+                  </button>
+                  <button onclick="deleteLink(${link.id})" class="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700">
+                    🗑️
+                  </button>
+                </div>
+              </div>
+              
+              <div class="bg-gray-50 rounded p-3 mb-3">
+                <p class="text-xs text-gray-600 mb-1">NFC 链接：</p>
+                <code class="text-sm text-blue-600 break-all">${link.nfc_url}</code>
+                <div class="flex gap-2 mt-2">
+                  <button onclick="copyText('${link.nfc_url}')" class="text-xs text-blue-600 hover:underline">
+                    📋 复制
+                  </button>
+                  <a href="${link.nfc_url}" target="_blank" class="text-xs text-blue-600 hover:underline">
+                    🔗 测试
+                  </a>
+                </div>
+              </div>
+
+              ${hasVideo ? `
+                <div class="bg-green-50 border border-green-200 rounded p-3">
+                  <div class="flex justify-between items-center mb-2">
+                    <div>
+                      <p class="text-sm font-medium text-green-800">✅ 已绑定视频</p>
+                      <p class="text-xs text-green-700">${escapeHtml(link.current_video.title)}</p>
+                    </div>
+                    <div class="flex gap-2">
+                      <button onclick="showBindModal(${link.id}, '${escapeHtml(link.current_video.title)}')" class="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700">
+                        🔄 更换
+                      </button>
+                      <button onclick="unbindVideo(${link.id})" class="px-3 py-1 bg-orange-600 text-white text-xs rounded hover:bg-orange-700">
+                        ️ 解绑
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ` : `
+                <button onclick="showBindModal(${link.id})" class="w-full py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                  📤 绑定视频
+                </button>
+              `}
+            </div>
+          `;
+        }).join('');
+
+        updateStats(total, bound, unbound);
+
+      } catch (err) {
+        listDiv.innerHTML = `<p class="text-red-500 text-center py-8">加载失败：${err.message}</p>`;
+      }
+    }
+
+    // 更新统计
+    function updateStats(total, bound, unbound) {
+      document.getElementById('totalCount').textContent = total;
+      document.getElementById('boundCount').textContent = bound;
+      document.getElementById('unboundCount').textContent = unbound;
+    }
+
+    // 显示生成模态框
+    function showGenerateModal() {
+      document.getElementById('generateModal').classList.remove('hidden');
+    }
+
+    // 关闭生成模态框
+    function closeGenerateModal() {
+      document.getElementById('generateModal').classList.add('hidden');
+    }
+
+    // 批量生成链接
+    async function generateLinks() {
+      const count = parseInt(document.getElementById('generateCount').value);
+      const prefix = document.getElementById('generatePrefix').value;
+
+      if (count < 1 || count > 100) {
+        alert('数量必须在 1-100 之间');
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}/api/nfc-links/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ count, prefix }),
+        });
+
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+
+        alert(`✅ 成功生成 ${count} 个 NFC 链接`);
+        closeGenerateModal();
+        loadNfcLinks();
+
+      } catch (err) {
+        alert('❌ 生成失败：' + err.message);
+      }
+    }
+
+    // 显示绑定模态框
+    function showBindModal(linkId, currentTitle = '') {
+      currentLinkId = linkId;
+      const content = document.getElementById('bindModalContent');
+      
+      content.innerHTML = `
+        <div class="bg-blue-50 border border-blue-200 rounded p-3 mb-4">
+          <p class="text-sm text-blue-800">
+            ${currentTitle ? `当前视频：${currentTitle}` : '该链接尚未绑定视频'}
+          </p>
+        </div>
+
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">上传视频文件</label>
+            <input type="file" id="bindVideoFile" accept="video/*" 
+              class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+            <p class="text-xs text-gray-500 mt-1">支持 MP4、WebM 等格式，最大 100MB</p>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">视频标题</label>
+            <input type="text" id="bindVideoTitle" placeholder="视频标题" 
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">描述（可选）</label>
+            <textarea id="bindVideoDesc" rows="2" placeholder="视频描述..." 
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+          </div>
+
+          <div id="uploadProgress" class="hidden">
+            <div class="bg-blue-100 border border-blue-400 text-blue-700 px-4 py-2 rounded">
+              ⏳ 正在上传视频，请稍候...
+            </div>
+          </div>
+
+          <div class="flex gap-2">
+            <button onclick="closeBindModal()" class="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
+              取消
+            </button>
+            <button onclick="uploadAndBind()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+              上传并绑定
+            </button>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('bindModal').classList.remove('hidden');
+    }
+
+    // 关闭绑定模态框
+    function closeBindModal() {
+      document.getElementById('bindModal').classList.add('hidden');
+      currentLinkId = null;
+    }
+
+    // 上传并绑定视频
+    async function uploadAndBind() {
+      const fileInput = document.getElementById('bindVideoFile');
+      const title = document.getElementById('bindVideoTitle').value;
+      const description = document.getElementById('bindVideoDesc').value;
+      const file = fileInput.files[0];
+
+      if (!file) {
+        alert('请选择视频文件');
+        return;
+      }
+
+      const progressDiv = document.getElementById('uploadProgress');
+      progressDiv.classList.remove('hidden');
+
+      try {
+        const formData = new FormData();
+        formData.append('video', file);
+        formData.append('title', title || '视频内容');
+        formData.append('description', description);
+
+        const res = await fetch(`${API_BASE}/api/nfc-links/${currentLinkId}/upload-bind`, {
+          method: 'POST',
+          body: formData,
+        });
+
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+
+        alert('✅ 视频绑定成功！');
+        closeBindModal();
+        loadNfcLinks();
+
+      } catch (err) {
+        alert('❌ 操作失败：' + err.message);
+      } finally {
+        progressDiv.classList.add('hidden');
+      }
+    }
+
+    // 解绑视频
+    async function unbindVideo(linkId) {
+      if (!confirm('确定要解绑视频吗？解绑后 NFC 标签将无法播放视频。')) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/api/nfc-links/${linkId}/unbind`, {
+          method: 'DELETE',
+        });
+
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+
+        alert('✅ 解绑成功');
+        loadNfcLinks();
+
+      } catch (err) {
+        alert('❌ 操作失败：' + err.message);
+      }
+    }
+
+    // 切换链接状态
+    async function toggleLink(linkId) {
+      try {
+        const res = await fetch(`${API_BASE}/api/nfc-links/${linkId}/toggle`, {
+          method: 'PATCH',
+        });
+
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+
+        loadNfcLinks();
+
+      } catch (err) {
+        alert('❌ 操作失败：' + err.message);
+      }
+    }
+
+    // 删除链接
+    async function deleteLink(linkId) {
+      if (!confirm('确定要删除这个 NFC 链接吗？删除后无法恢复，写入该 NFC 标签的手机将无法访问。')) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/api/nfc-links/${linkId}`, {
+          method: 'DELETE',
+        });
+
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+
+        alert('✅ 删除成功');
+        loadNfcLinks();
+
+      } catch (err) {
+        alert('❌ 删除失败：' + err.message);
+      }
+    }
+
+    // 复制文本
+    function copyText(text) {
+      navigator.clipboard.writeText(text).then(() => {
+        alert('✅ 已复制到剪贴板');
+      }).catch(() => {
+        alert('❌ 复制失败');
+      });
+    }
+
+    // HTML 转义
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // 页面加载
+    loadNfcLinks();
+  </script>
+</body>
+</html>

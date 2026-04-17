@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NFC 链接管理</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <div class="container mx-auto px-4 py-8 max-w-7xl">
+    <div class="mb-8">
+      <h1 class="text-3xl font-bold text-gray-800">🔗 NFC 链接管理</h1>
+      <p class="text-gray-600 mt-2">管理 NFC 链接、视频上传和映射关系</p>
+    </div>
+
+    <!-- 三个核心功能按钮 -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <button onclick="showSection('generate')" class="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition text-left">
+        <div class="text-4xl mb-3">📱</div>
+        <h3 class="text-xl font-semibold text-gray-800 mb-2">NFC 链接生成</h3>
+        <p class="text-gray-600 text-sm">批量生成固定 NFC 链接</p>
+      </button>
+
+      <button onclick="showSection('upload')" class="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition text-left">
+        <div class="text-4xl mb-3">📤</div>
+        <h3 class="text-xl font-semibold text-gray-800 mb-2">视频上传和链接</h3>
+        <p class="text-gray-600 text-sm">上传视频生成播放链接</p>
+      </button>
+
+      <button onclick="showSection('mapping')" class="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition text-left">
+        <div class="text-4xl mb-3">🔗</div>
+        <h3 class="text-xl font-semibold text-gray-800 mb-2">添加映射</h3>
+        <p class="text-gray-600 text-sm">建立 NFC 链接与视频的映射关系</p>
+      </button>
+    </div>
+
+    <!-- NFC 链接生成区域 -->
+    <div id="generateSection" class="hidden bg-white rounded-lg shadow-md p-6">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-semibold">📱 NFC 链接生成</h2>
+        <button onclick="hideAllSections()" class="text-gray-500 hover:text-gray-700">✕ 关闭</button>
+      </div>
+
+      <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+        <p class="text-sm text-blue-800">
+          💡 批量生成固定 NFC 链接，这些链接将写入 NFC 标签，永久不变
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">生成数量</label>
+          <input type="number" id="generateCount" value="10" min="1" max="100" 
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">前缀（可选）</label>
+          <input type="text" id="generatePrefix" placeholder="例如：nfc_" 
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+
+        <div class="flex items-end">
+          <button onclick="generateLinks()" class="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+            生成链接
+          </button>
+        </div>
+      </div>
+
+      <div id="generateResult" class="hidden">
+        <h3 class="font-semibold mb-3">生成的 NFC 链接：</h3>
+        <div id="generatedLinks" class="space-y-2 max-h-96 overflow-y-auto"></div>
+      </div>
+    </div>
+
+    <!-- 视频上传区域 -->
+    <div id="uploadSection" class="hidden bg-white rounded-lg shadow-md p-6">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-semibold">📤 视频上传和链接</h2>
+        <button onclick="hideAllSections()" class="text-gray-500 hover:text-gray-700">✕ 关闭</button>
+      </div>
+
+      <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+        <p class="text-sm text-green-800">
+          💡 上传视频文件到服务器，生成可访问的视频播放链接
+        </p>
+      </div>
+
+      <!-- 上传表单 -->
+      <div class="border border-gray-200 rounded-lg p-4 mb-6">
+        <h3 class="font-semibold mb-4">上传新视频</h3>
+        
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">视频文件</label>
+            <input type="file" id="uploadVideoFile" accept="video/*" 
+              class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100">
+            <p class="text-xs text-gray-500 mt-1">支持 MP4、WebM 等格式，最大 100MB</p>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">视频标题</label>
+            <input type="text" id="uploadVideoTitle" placeholder="输入视频标题" 
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">描述（可选）</label>
+            <textarea id="uploadVideoDesc" rows="2" placeholder="视频描述..." 
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"></textarea>
+          </div>
+
+          <div id="uploadProgress" class="hidden">
+            <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-2 rounded">
+              ⏳ 正在上传视频，请稍候...
+            </div>
+          </div>
+
+          <button onclick="uploadVideo()" class="w-full px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+            上传视频
+          </button>
+        </div>
+      </div>
+
+      <!-- 已上传视频列表 -->
+      <div>
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="font-semibold">已上传视频列表</h3>
+          <button onclick="loadVideoList()" class="text-sm text-blue-600 hover:text-blue-800">🔄 刷新</button>
+        </div>
+        <div id="videoList" class="space-y-3">
+          <p class="text-gray-500 text-center py-8">暂无视频</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 添加映射区域 -->
+    <div id="mappingSection" class="hidden bg-white rounded-lg shadow-md p-6">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-semibold">🔗 添加映射</h2>
+        <button onclick="hideAllSections()" class="text-gray-500 hover:text-gray-700">✕ 关闭</button>
+      </div>
+
+      <div class="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6">
+        <p class="text-sm text-purple-800">
+          💡 将 NFC 链接与视频链接建立一对一映射关系，用户扫描 NFC 后自动播放对应视频
+        </p>
+      </div>
+
+      <!-- 添加新映射 -->
+      <div class="border border-gray-200 rounded-lg p-4 mb-6">
+        <h3 class="font-semibold mb-4">添加新映射</h3>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">选择 NFC 链接</label>
+            <select id="selectNfcLink" 
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500">
+              <option value="">-- 请选择 NFC 链接 --</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">选择视频链接</label>
+            <select id="selectVideoLink" 
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500">
+              <option value="">-- 请选择视频链接 --</option>
+            </select>
+          </div>
+        </div>
+
+        <button onclick="addMapping()" class="w-full px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700">
+          添加映射
+        </button>
+      </div>
+
+      <!-- 已映射记录 -->
+      <div>
+        <h3 class="font-semibold mb-4">已映射记录</h3>
+        <div id="mappingList" class="space-y-4">
+          <p class="text-gray-500 text-center py-8">暂无映射记录</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = window.location.origin;
+    let allNfcLinks = [];
+    let allVideoLinks = [];
+
+    // 显示指定区域
+    function showSection(section) {
+      hideAllSections();
+      document.getElementById(section + 'Section').classList.remove('hidden');
+      
+      // 加载数据
+      if (section === 'mapping') {
+        loadMappingData();
+      } else if (section === 'upload') {
+        loadVideoList();
+      }
+    }
+
+    // 隐藏所有区域
+    function hideAllSections() {
+      document.getElementById('generateSection').classList.add('hidden');
+      document.getElementById('uploadSection').classList.add('hidden');
+      document.getElementById('mappingSection').classList.add('hidden');
+    }
+
+    // 批量生成 NFC 链接
+    async function generateLinks() {
+      const count = parseInt(document.getElementById('generateCount').value);
+      const prefix = document.getElementById('generatePrefix').value;
+
+      if (count < 1 || count > 100) {
+        alert('数量必须在 1-100 之间');
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}/api/nfc-links/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ count, prefix }),
+        });
+
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+
+        // 显示结果
+        const resultDiv = document.getElementById('generateResult');
+        const linksDiv = document.getElementById('generatedLinks');
+        
+        linksDiv.innerHTML = data.data.map(link => `
+          <div class="bg-gray-50 border border-gray-200 rounded p-3">
+            <code class="text-sm text-blue-600 break-all">${link.nfc_url}</code>
+            <button onclick="copyText('${link.nfc_url}')" class="ml-2 text-xs text-blue-600 hover:underline">
+              📋 复制
+            </button>
+          </div>
+        `).join('');
+        
+        resultDiv.classList.remove('hidden');
+        alert(`✅ 成功生成 ${count} 个 NFC 链接`);
+
+      } catch (err) {
+        alert('❌ 生成失败：' + err.message);
+      }
+    }
+
+    // 上传视频
+    async function uploadVideo() {
+      const fileInput = document.getElementById('uploadVideoFile');
+      const title = document.getElementById('uploadVideoTitle').value;
+      const description = document.getElementById('uploadVideoDesc').value;
+      const file = fileInput.files[0];
+
+      if (!file) {
+        alert('请选择视频文件');
+        return;
+      }
+
+      const progressDiv = document.getElementById('uploadProgress');
+      progressDiv.classList.remove('hidden');
+
+      try {
+        const formData = new FormData();
+        formData.append('video', file);
+        formData.append('title', title || '视频内容');
+        formData.append('description', description);
+
+        const res = await fetch(`${API_BASE}/api/upload`, {
+          method: 'POST',
+          body: formData,
+        });
+
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+
+        alert('✅ 视频上传成功！');
+        
+        // 清空表单
+        fileInput.value = '';
+        document.getElementById('uploadVideoTitle').value = '';
+        document.getElementById('uploadVideoDesc').value = '';
+        
+        // 刷新视频列表
+        loadVideoList();
+
+      } catch (err) {
+        alert('❌ 上传失败：' + err.message);
+      } finally {
+        progressDiv.classList.add('hidden');
+      }
+    }
+
+    // 加载视频列表
+    async function loadVideoList() {
+      const listDiv = document.getElementById('videoList');
+      listDiv.innerHTML = '<p class="text-gray-500 text-center py-4">加载中...</p>';
+
+      try {
+        const res = await fetch(`${API_BASE}/api/links`);
+        const data = await res.json();
+        
+        if (!data.success || !data.data.length) {
+          listDiv.innerHTML = '<p class="text-gray-500 text-center py-8">暂无视频</p>';
+          allVideoLinks = [];
+          return;
+        }
+
+        allVideoLinks = data.data;
+
+        listDiv.innerHTML = allVideoLinks.map(video => `
+          <div class="border border-gray-200 rounded-lg p-4">
+            <div class="flex justify-between items-start mb-2">
+              <div>
+                <h4 class="font-semibold">${escapeHtml(video.title)}</h4>
+                <p class="text-xs text-gray-600">ID: ${video.short_id}</p>
+                <p class="text-xs text-gray-600">上传时间：${formatDate(video.created_at)}</p>
+              </div>
+              <button onclick="deleteVideo(${video.id}, '${escapeHtml(video.short_id)}')" class="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700">
+                🗑️ 删除
+              </button>
+            </div>
+            <code class="text-xs text-gray-600 break-all block bg-gray-50 p-2 rounded">${escapeHtml(video.video_url)}</code>
+            <button onclick="copyText('${video.video_url}')" class="mt-2 text-xs text-blue-600 hover:underline">
+              📋 复制链接
+            </button>
+          </div>
+        `).join('');
+
+      } catch (err) {
+        listDiv.innerHTML = `<p class="text-red-500 text-center py-8">加载失败：${err.message}</p>`;
+      }
+    }
+
+    // 删除视频
+    async function deleteVideo(videoId, shortId) {
+      if (!confirm(`确定要删除视频 ${shortId} 吗？删除后无法恢复！`)) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/api/links/${videoId}`, {
+          method: 'DELETE',
+        });
+
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+
+        alert('✅ 视频已删除');
+        loadVideoList();
+
+      } catch (err) {
+        alert('❌ 删除失败：' + err.message);
+      }
+    }
+
+    // 加载映射数据
+    async function loadMappingData() {
+      try {
+        // 加载 NFC 链接
+        const nfcRes = await fetch(`${API_BASE}/api/nfc-links`);
+        const nfcData = await nfcRes.json();
+        allNfcLinks = nfcData.data || [];
+
+        // 加载视频链接
+        const videoRes = await fetch(`${API_BASE}/api/links`);
+        const videoData = await videoRes.json();
+        allVideoLinks = videoData.data || [];
+
+        // 更新下拉框
+        updateSelectBoxes();
+
+        // 加载已映射记录
+        loadMappingList();
+
+      } catch (err) {
+        console.error('Load data error:', err);
+      }
+    }
+
+    // 更新下拉框
+    function updateSelectBoxes() {
+      // NFC 链接下拉框
+      const nfcSelect = document.getElementById('selectNfcLink');
+      nfcSelect.innerHTML = '<option value="">-- 请选择 NFC 链接 --</option>';
+      
+      allNfcLinks.forEach(link => {
+        const option = document.createElement('option');
+        option.value = link.id;
+        option.textContent = `${link.title} (${link.short_id})`;
+        if (link.current_video) {
+          option.disabled = true;
+          option.textContent += ' - 已绑定';
+        }
+        nfcSelect.appendChild(option);
+      });
+
+      // 视频链接下拉框
+      const videoSelect = document.getElementById('selectVideoLink');
+      videoSelect.innerHTML = '<option value="">-- 请选择视频链接 --</option>';
+      
+      allVideoLinks.forEach(video => {
+        const option = document.createElement('option');
+        option.value = video.video_url;
+        option.textContent = `${video.title} - ${video.short_id}`;
+        videoSelect.appendChild(option);
+      });
+    }
+
+    // 加载已映射记录
+    function loadMappingList() {
+      const listDiv = document.getElementById('mappingList');
+      
+      // 过滤出已绑定的映射
+      const mappings = allNfcLinks.filter(link => link.current_video);
+
+      if (mappings.length === 0) {
+        listDiv.innerHTML = '<p class="text-gray-500 text-center py-8">暂无映射记录</p>';
+        return;
+      }
+
+      listDiv.innerHTML = mappings.map(mapping => `
+        <div class="border border-gray-200 rounded-lg p-4">
+          <div class="flex justify-between items-start mb-3">
+            <div>
+              <h4 class="font-semibold">${escapeHtml(mapping.title)}</h4>
+              <p class="text-sm text-gray-600">创建时间：${formatDate(mapping.created_at)}</p>
+            </div>
+            <button onclick="deleteMapping(${mapping.id})" class="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700">
+              🗑️ 删除
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="bg-blue-50 border border-blue-200 rounded p-3">
+              <p class="text-sm font-medium text-blue-800 mb-1">📱 NFC 链接</p>
+              <code class="text-xs text-blue-700 break-all">${escapeHtml(mapping.nfc_url)}</code>
+              <button onclick="copyText('${mapping.nfc_url}')" class="mt-1 text-xs text-blue-600 hover:underline">
+                📋 复制
+              </button>
+            </div>
+
+            <div class="bg-green-50 border border-green-200 rounded p-3">
+              <p class="text-sm font-medium text-green-800 mb-1">🎬 视频链接</p>
+              <p class="text-xs text-green-700 mb-1">${escapeHtml(mapping.current_video.title)}</p>
+              <code class="text-xs text-green-600 break-all">${escapeHtml(mapping.current_video.video_url)}</code>
+              <button onclick="copyText('${mapping.current_video.video_url}')" class="mt-1 text-xs text-green-600 hover:underline">
+                📋 复制
+              </button>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // 添加映射
+    async function addMapping() {
+      const nfcLinkId = document.getElementById('selectNfcLink').value;
+      const videoUrl = document.getElementById('selectVideoLink').value;
+
+      if (!nfcLinkId) {
+        alert('请选择 NFC 链接');
+        return;
+      }
+
+      if (!videoUrl) {
+        alert('请选择视频链接');
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}/api/nfc-links/${nfcLinkId}/bind`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            videoUrl: videoUrl,
+            title: '映射视频',
+          }),
+        });
+
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+
+        alert('✅ 映射关系添加成功！');
+        loadMappingData();
+
+      } catch (err) {
+        alert('❌ 添加失败：' + err.message);
+      }
+    }
+
+    // 删除映射
+    async function deleteMapping(mappingId) {
+      if (!confirm('确定要删除这个映射关系吗？')) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/api/nfc-links/${mappingId}/unbind`, {
+          method: 'DELETE',
+        });
+
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+
+        alert('✅ 映射关系已删除');
+        loadMappingData();
+
+      } catch (err) {
+        alert('❌ 删除失败：' + err.message);
+      }
+    }
+
+    // 复制文本
+    function copyText(text) {
+      navigator.clipboard.writeText(text).then(() => {
+        alert('✅ 已复制到剪贴板');
+      }).catch(() => {
+        alert('❌ 复制失败');
+      });
+    }
+
+    // HTML 转义
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // 格式化日期
+    function formatDate(dateStr) {
+      const date = new Date(dateStr);
+      return date.toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+  </script>
+</body>
+</html>
