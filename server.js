@@ -122,10 +122,33 @@ app.post('/api/upload', upload.single('video'), async (req, res) => {
       .from('nfc-videos')
       .getPublicUrl(safeFileName);
 
+    // 写入数据库
+    const { data: dbData, error: dbError } = await supabase
+      .from('nfc_videos')
+      .insert({
+        short_id: nanoid(6),
+        video_url: publicUrl,
+        video_file_path: uploadData.path,
+        title: req.body.title || '视频内容',
+        description: req.body.description || '',
+        active: true,
+      })
+      .select()
+      .single();
+
+    if (dbError) throw dbError;
+
     res.json({ 
       success: true, 
       videoUrl: publicUrl,
-      fileName: uploadData.path 
+      fileName: uploadData.path,
+      data: {
+        id: dbData.id,
+        shortId: dbData.short_id,
+        title: dbData.title,
+        videoUrl: publicUrl,
+        createdAt: dbData.created_at
+      }
     });
   } catch (err) {
     console.error('Upload error:', err);
