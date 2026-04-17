@@ -42,7 +42,8 @@ app.get('/v/:id', async (req, res) => {
         video_contents (
           video_url,
           title,
-          description
+          description,
+          is_current
         )
       `)
       .eq('short_id', id)
@@ -72,9 +73,10 @@ app.get('/v/:id', async (req, res) => {
     }
 
     // 获取当前绑定的视频
-    const currentVideo = nfcLink.video_contents?.find(vc => vc.is_current);
+    const currentVideo = nfcLink.video_contents?.find(vc => vc.is_current === true);
     
     if (!currentVideo) {
+      console.log(`NFC Link ${id} has no current video. video_contents:`, nfcLink.video_contents);
       return res.status(404).send(`
         <div style="text-align:center;padding:50px;font-family:system-ui;">
           <h1>⚠️ 未绑定视频</h1>
