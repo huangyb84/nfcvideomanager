@@ -229,11 +229,11 @@
         const data = await res.json();
         if (!data.success) throw new Error(data.error);
 
-        // 显示结果
+        // 显示结果 - 追加而不是覆盖
         const resultDiv = document.getElementById('generateResult');
         const linksDiv = document.getElementById('generatedLinks');
         
-        linksDiv.innerHTML = data.data.map(link => `
+        const newLinksHtml = data.data.map(link => `
           <div class="bg-gray-50 border border-gray-200 rounded p-3">
             <code class="text-sm text-blue-600 break-all">${link.nfc_url}</code>
             <button onclick="copyText('${link.nfc_url}')" class="ml-2 text-xs text-blue-600 hover:underline">
@@ -241,6 +241,9 @@
             </button>
           </div>
         `).join('');
+        
+        // 追加新生成的链接
+        linksDiv.innerHTML += newLinksHtml;
         
         resultDiv.classList.remove('hidden');
         alert(`✅ 成功生成 ${count} 个 NFC 链接`);

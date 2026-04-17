@@ -128,6 +128,7 @@ app.post('/api/upload', upload.single('video'), async (req, res) => {
       .insert({
         short_id: nanoid(6),
         video_url: publicUrl,
+        video_file_path: uploadData.path,
         title: req.body.title || '视频内容',
         description: req.body.description || '',
         active: true,
